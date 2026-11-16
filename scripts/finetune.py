@@ -1338,11 +1338,11 @@ def finetune(cfg: DictConfig):
                             accelerator.log(log_dict, step=step)
 
                 # Periodic sync to catch CUDA errors early
-                if step > 0 and (step % 1000) == 0:
+                if is_optimizer_step and step > 0 and (step % 1000) == 0:
                     torch.cuda.synchronize()
 
                 # Save checkpoint in the main process
-                if step > 0 and (step % cfg.checkpointing_steps) == 0 and not _dry_run:
+                if is_optimizer_step and step > 0 and (step % cfg.checkpointing_steps) == 0 and not _dry_run:
                     if accelerator.is_main_process:
                         logger.info(f"Saving model checkpoint for step {step} ...")
                         save_training_checkpoint(
