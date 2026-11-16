@@ -609,7 +609,21 @@ def finetune(cfg: DictConfig):
     with accelerator.main_process_first():
         logger.info(f"[Process {accelerator.process_index}] Loading dataset...")
         train_dataset = instantiate_dataset(cfg, is_training_set=True)
-        eval_dataset = instantiate_dataset(cfg, is_training_set=False)
+        # Optional explicit held-out validation dir (G05_VAL_DATASET_DIR). When set,
+        # the eval dataset reads ALL episodes from that dir instead of sharing
+        # dataset_dirs with the training split; the proportion split is bypassed.
+        _val_dir = os.environ.get("G05_VAL_DATASET_DIR", "").strip()
+        if _val_dir:
+            eval_cfg = copy.deepcopy(cfg)
+            OmegaConf.set_struct(eval_cfg.data, False)
+            for _emb_cfg in eval_cfg.data.embodiment_datasets.values():
+                for _group in _emb_cfg.get("dataset_groups", []):
+                    _group.dataset_dirs = [_val_dir]
+            eval_cfg.data.val_set_proportion = 0.0
+            logger.info(f"Using explicit validation dataset dir: {_val_dir}")
+            eval_dataset = instantiate_dataset(eval_cfg, is_training_set=False)
+        else:
+            eval_dataset = instantiate_dataset(cfg, is_training_set=False)
 
     # Emit a single summary for all eval datasets that were reused from the train cache.
     from g05.data.base_lerobot_dataset import BaseLerobotDataset
@@ -1272,7 +1286,11 @@ def finetune(cfg: DictConfig):
                         if "cot" in _acc:
                             log_dict["train/cot_accuracy"] = _acc["cot"]
 
-                        if step % cfg.eval_steps == 0:
+                        # Periodic eval at eval_steps AND at every checkpoint node,
+                        # so each saved checkpoint has matching wandb eval metrics.
+                        if (step % cfg.eval_steps == 0) or (
+                            step > 0 and step % cfg.checkpointing_steps == 0
+                        ):
                             _train_time_in_period = time.time() - _period_train_start
                             if overfit_batch is not None and latest_action_eval_batch is not None:
                                 logger.info(

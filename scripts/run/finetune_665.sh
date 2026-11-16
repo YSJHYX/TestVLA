@@ -7,6 +7,10 @@ set -euo pipefail
 # export WANDB_ENTITY=         # Optional account/team; defaults to your authenticated account
 # WANDB_API_KEY is injected by your environment. No wandb.login() is called here.
 # Optional: G05_NORM_MODE=z-score, G05_VAL_PROPORTION=0.05, NPROC_PER_NODE=1
+# G05_VAL_DATASET_DIR: explicit held-out validation LeRobot dir, separate from
+# G05_DATASET_DIR. When set, periodic eval reads ALL of its episodes (proportion
+# split bypassed) and additionally fires at every checkpointing_steps node, so
+# each saved checkpoint pairs with wandb eval metrics (eval/action/*, per_emb/*).
 # Forward Hydra overrides; for step-based training set model.max_epochs=null with model.max_steps.
 for name in G05_DATASET_DIR G05_OUTPUT_DIR; do
   if [[ -z "${!name:-}" ]]; then
@@ -16,6 +20,10 @@ for name in G05_DATASET_DIR G05_OUTPUT_DIR; do
   # Resolve caller-relative paths before changing to the repository directory.
   export "$name=$(realpath -m -- "${!name}")"
 done
+if [[ -n "${G05_VAL_DATASET_DIR:-}" ]]; then
+  export G05_VAL_DATASET_DIR="$(realpath -m -- "$G05_VAL_DATASET_DIR")"
+  [[ -d "$G05_VAL_DATASET_DIR" ]] || { echo "G05_VAL_DATASET_DIR is not a directory: $G05_VAL_DATASET_DIR" >&2; exit 2; }
+fi
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 # The three shared/pretrained resources always use the official repo layout.
