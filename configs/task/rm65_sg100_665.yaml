@@ -1,0 +1,99 @@
+# @package _global_
+# Weights follow the official repository checkpoints/ layout; data/output are environment-owned.
+defaults:
+- override /model: g05
+- override /tokenizer: actioncodec
+- override /data: rm65_sg100_665
+- _self_
+shard_datasets_by_node: false
+use_fsdp: false
+datastatics_path: null
+rm665_metrics: true
+vlm:
+  cotrain: false
+deploy_checkpoint:
+  enabled: true
+logger:
+  type: wandb
+  project: ${oc.env:WANDB_PROJECT,G0.5_665}
+  workspace: ${oc.env:WANDB_ENTITY,''}
+  mode: ${oc.env:WANDB_MODE,online}
+  experiment_name: ${exp_name}
+tokenizer:
+  vq_config:
+    block_wise_autoregressive: false
+    block_size: 8
+    num_residuals: 2
+    use_group_markers: true
+    group_order_shuffle: false
+    dropout_noop_parts: true
+    absent_key_fill_value: -100.0
+    parts_meta:
+      left_control: 9
+      left_gripper: 1
+      right_control: 9
+      right_gripper: 1
+      lower_body: 7
+    ckpt_dir: checkpoints/action_tokenizer.pt
+model:
+  pretrained_ckpt: checkpoints/g05-base/checkpoints/model_state_dict.pt
+  use_pretrained_norm_stats: false
+  batch_size: 8
+  num_workers: 4
+  max_epochs: 10
+  learning_rate: 4.0e-05
+  warmup_steps: 200
+  warmup_ratio: null
+  use_8bit_optimizer: false
+  processor:
+    _target_: g05.data_processor.processor.rm65_sg100_processor.RM65SG100Processor
+    num_obs_steps: 6
+    num_output_cameras: 18
+    num_input_cameras: 3
+    action_state_merger:
+      _target_: g05.data_processor.transforms.action_state_merger.GroupedPaddingMerger
+      merge: true
+      max_action_shape_meta: ${oc.load:configs/data/parts_meta/rm65_sg100_665.yaml,parts_meta}
+      max_state_shape_meta: ${oc.load:configs/data/parts_meta/rm65_sg100_665.yaml,parts_meta}
+      merge_spec: ${oc.load:configs/data/parts_meta/rm65_sg100_665.yaml,merge_spec}
+    samples_builder:
+      _target_: g05.data_processor.processor.samples_builder.MixedSamplesBuilder
+      _partial_: true
+      _recursive_: false
+      candidates:
+      - _target_: g05.data_processor.processor.samples_builder.HighLevelAtomicTaskCoTBuilder
+        weight: 1.0
+      - _target_: g05.data_processor.processor.samples_builder.SubtaskActionHintCoTBuilder
+        weight: 1.0
+      - _target_: g05.data_processor.processor.samples_builder.AtomicTaskBaseSamplesBuilder
+        weight: 1.0
+      - _target_: g05.data_processor.processor.samples_builder.Trace2DCoTBuilder
+        weight: 1.0
+      - _target_: g05.data_processor.processor.samples_builder.BBoxSubtaskCoTBuilder
+        weight: 1.0
+      - _target_: g05.data_processor.processor.samples_builder.BBoxCoTBuilder
+        weight: 1.0
+      - _target_: g05.data_processor.processor.samples_builder.SubtaskCoTBuilder
+        weight: 2.0
+      - _target_: g05.data_processor.processor.samples_builder.BaseSamplesBuilder
+        weight: 1.0
+      eval_builder:
+        _target_: g05.data_processor.processor.samples_builder.BaseSamplesBuilder
+    tokenizer_params: null
+  model_arch:
+    hf_processor_path: checkpoints/qwen3_5_2b_base_processor
+    action_dim: 27
+    proprio_dim: 27
+    cond_steps: 1
+    num_obs_steps: 1
+    num_input_images: 18
+    predict_cot: true
+    mem_frame_drop_prob: 0.3
+    vision:
+      temporal_freq: 4
+    fm:
+      num_flow_samples: 4
+    ar:
+      block_wise_autoregressive: false
+    input_preprocessor:
+      pred_eov: true

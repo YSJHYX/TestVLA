@@ -1,0 +1,18 @@
+# 6+6+5 physical channels, original 27D model layout.
+parts_meta:
+  hand_thumb_index: 9
+  left_gripper: 1
+  arm: 9
+  right_gripper: 1
+  hand_middle_ring: 7
+merge_spec:
+  left_control:
+  - hand_thumb_index
+  left_gripper:
+  - left_gripper
+  right_control:
+  - arm
+  right_gripper:
+  - right_gripper
+  lower_body:
+  - hand_middle_ring

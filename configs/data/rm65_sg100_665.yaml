@@ -1,0 +1,112 @@
+# LeRobot v2.1 root comes from G05_DATASET_DIR; no conversion is needed.
+# VAL=0 reuses train episodes for diagnostics; set a held-out fraction for multi-episode training.
+_target_: g05.data.mixture_lerobot_dataset.MixtureLerobotDataset
+use_weight_normalization: true
+use_weight_for_sampling: false
+action_size: 32
+past_action_size: 0
+obs_size: 6
+obs_stride_second: 1.0
+val_set_proportion: 0.0
+is_training_set: true
+processors:
+  rm65_sg100:
+    shape_meta: &id001
+      action:
+      - key: arm
+        lerobot_key: action
+        start_index: 0
+        raw_shape: 6
+        shape: 6
+        time_offset: 0
+      - key: hand_thumb_index
+        lerobot_key: action
+        start_index: 6
+        raw_shape: 6
+        shape: 6
+        time_offset: 0
+      - key: hand_middle_ring
+        lerobot_key: action
+        start_index: 12
+        raw_shape: 5
+        shape: 5
+        time_offset: 0
+      state:
+      - key: arm
+        lerobot_key: observation.state
+        start_index: 0
+        raw_shape: 6
+        shape: 6
+        time_offset: 0
+      - key: hand_thumb_index
+        lerobot_key: observation.state
+        start_index: 6
+        raw_shape: 6
+        shape: 6
+        time_offset: 0
+      - key: hand_middle_ring
+        lerobot_key: observation.state
+        start_index: 12
+        raw_shape: 5
+        shape: 5
+        time_offset: 0
+      images:
+      - key: head
+        camera_type: exterior
+        lerobot_key: observation.images.head
+        start_index: 0
+        raw_shape:
+        - 3
+        - 480
+        - 640
+        shape:
+        - 3
+        - 256
+        - 256
+        time_offset: 0
+      - key: wrist
+        camera_type: wrist_left
+        lerobot_key: observation.images.wrist
+        start_index: 0
+        raw_shape:
+        - 3
+        - 480
+        - 640
+        shape:
+        - 3
+        - 256
+        - 256
+        time_offset: 0
+      - key: missing_right_wrist
+        camera_type: wrist_right
+        dummy: true
+        shape:
+        - 3
+        - 256
+        - 256
+    action_state_transforms:
+    - _target_: g05.data_processor.transforms.relative_action.RelativeJointTransform
+      keys:
+      - arm
+    norm_default_mode: ${oc.env:G05_NORM_MODE,z-score}
+    norm_exception_mode: null
+    action_filter:
+      _target_: g05.data_processor.transforms.action_filter.DummyActionFilter
+    train_transforms:
+      head: ${oc.load:configs/data/_transforms.yaml,val}
+      wrist: ${oc.load:configs/data/_transforms.yaml,val}
+      missing_right_wrist: ${oc.load:configs/data/_transforms.yaml,val}
+    val_transforms:
+      head: ${oc.load:configs/data/_transforms.yaml,val}
+      wrist: ${oc.load:configs/data/_transforms.yaml,val}
+      missing_right_wrist: ${oc.load:configs/data/_transforms.yaml,val}
+embodiment_datasets:
+  rm65_sg100:
+    type: g05.data.base_lerobot_dataset.BaseLerobotDataset
+    embodiment_type: rm65_sg100
+    lerobot_ds_version: '2.1'
+    shape_meta: *id001
+    dataset_groups:
+    - weight: 1.0
+      dataset_dirs:
+      - ${oc.env:G05_DATASET_DIR}
