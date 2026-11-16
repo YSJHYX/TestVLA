@@ -15,6 +15,7 @@ from utils.metric import (
     reduce_per_emb_metrics,
     rollout_and_calculate_metrics,
 )
+from utils.rm665_diagnostics import codec_reconstruction_metrics, degree_log_metrics
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +80,10 @@ class PeriodicEvaluator:
                 log_dict[k] = v  # per_emb/ already includes the eval/ sub-prefix.
             else:
                 log_dict[f"eval/action/{k}"] = v
+
+        # Tracker-only units: keep model inputs, losses and saved predictions unchanged.
+        log_dict = degree_log_metrics(log_dict, self.eval_processor)
+        log_dict.update(codec_reconstruction_metrics(eval_batch, model, self.eval_processor))
 
         try:
             save_eval_snapshot(
